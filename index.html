@@ -18,7 +18,8 @@
     .controls{display:flex;gap:8px;align-items:center}
     button{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;color:inherit;cursor:pointer}
     .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-    .quad{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;min-height:260px;border:1px solid rgba(255,255,255,0.03)}
+    .quad{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;min-height:260px;border:1px solid rgba(255,255,255,0.03);position:relative}
+    .quad.drop-hover{background:rgba(125,211,252,0.08);border:2px dashed var(--accent);transition:all .2s ease}
     .quad h2{display:flex;justify-content:space-between;align-items:center;font-size:16px;margin:0 0 8px 0}
     .quad .hint{font-size:12px;color:var(--muted)}
     .task{background:#051225;border-radius:8px;padding:8px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.03);cursor:grab}
@@ -88,7 +89,7 @@
     </footer>
   </div>
 
-  <!-- Modal simples -->
+  <!-- Modal -->
   <div id="modal" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);">
     <div style="background:#041323;padding:16px;border-radius:10px;min-width:320px;max-width:700px;border:1px solid rgba(255,255,255,0.04)">
       <h3 id="modal-title">Nova tarefa</h3>
@@ -122,11 +123,12 @@
     const STORAGE_KEY = 'eisenhower_tasks_v1';
     let tasks = {};
 
-    // util
-    const uid = ()=> Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    // ---------- Utilitários ----------
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
     const el = id => document.getElementById(id);
+    const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-    // modal
+    // ---------- Modal ----------
     const modal = el('modal');
     const tTitle = el('task-title');
     const tDesc = el('task-desc');
@@ -134,109 +136,177 @@
     const tQuad = el('task-quad');
     let editingId = null;
 
-    function openModal(initial={title:'',desc:'',due:'',quad:'1'}){
+    function openModal(initial = {title:'',desc:'',due:'',quad:'1'}){
       editingId = null;
-      tTitle.value = initial.title||'';
-      tDesc.value = initial.desc||'';
-      tDue.value = initial.due||'';
-      tQuad.value = initial.quad||'1';
+      tTitle.value = initial.title || '';
+      tDesc.value = initial.desc || '';
+      tDue.value = initial.due || '';
+      tQuad.value = initial.quad || '1';
       el('modal-title').innerText = initial.id ? 'Editar tarefa' : 'Nova tarefa';
       modal.style.display = 'flex';
     }
     function closeModal(){ modal.style.display = 'none'; }
 
-    el('btn-new').addEventListener('click', ()=> openModal());
+    el('btn-new').addEventListener('click', () => openModal());
     el('modal-cancel').addEventListener('click', closeModal);
-    el('modal-save').addEventListener('click', ()=>{
+    el('modal-save').addEventListener('click', () => {
       const title = tTitle.value.trim();
-      if(!title){ alert('Título obrigatório'); return; }
-      const obj = {title,desc:tDesc.value||'',due:tDue.value||'',quad: tQuad.value, updated: Date.now()};
-      if(editingId){ tasks[editingId] = {...tasks[editingId], ...obj}; }
-      else { const id = uid(); tasks[id] = {...obj, id, created:Date.now()}; }
+      if (!title) { alert('Título obrigatório'); return; }
+      const obj = {
+        title,
+        desc: tDesc.value || '',
+        due: tDue.value || '',
+        quad: tQuad.value,
+        updated: Date.now()
+      };
+      if (editingId) {
+        tasks[editingId] = { ...tasks[editingId], ...obj };
+      } else {
+        const id = uid();
+        tasks[id] = { ...obj, id, created: Date.now() };
+      }
       save(); closeModal(); render();
     });
 
-    // storage
+    // ---------- Armazenamento ----------
     function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
-    function load(){ const raw = localStorage.getItem(STORAGE_KEY); tasks = raw ? JSON.parse(raw) : {}; }
+    function load(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      tasks = raw ? JSON.parse(raw) : {};
+    }
 
-    // render
+    // ---------- Renderização ----------
     function render(){
-      ['q1','q2','q3','q4'].forEach(id=> el(id).innerHTML = '');
-      const keys = Object.keys(tasks).sort((a,b)=> tasks[b].created - tasks[a].created);
-      for(const k of keys){ const t = tasks[k]; const container = el('q'+t.quad);
-        const node = document.createElement('div'); node.className='task'; node.draggable = true; node.dataset.id = t.id;
+      ['q1','q2','q3','q4'].forEach(id => el(id).innerHTML = '');
+      const keys = Object.keys(tasks).sort((a,b) => tasks[b].created - tasks[a].created);
+      for (const k of keys){
+        const t = tasks[k];
+        const container = el('q' + t.quad);
+        const node = document.createElement('div');
+        node.className = 'task';
+        node.draggable = true;
+        node.dataset.id = t.id;
         node.innerHTML = `
           <div class="title">${escapeHtml(t.title)}</div>
-          <div class="meta">${t.desc ? escapeHtml(t.desc) : '<i style="color:var(--muted)">sem descrição</i>'} ${t.due? ' • Prazo: '+t.due : ''}</div>
+          <div class="meta">${t.desc ? escapeHtml(t.desc) : '<i style="color:var(--muted)">sem descrição</i>'} ${t.due ? ' • Prazo: '+t.due : ''}</div>
           <div class="actions">
             <button class="small" data-act="edit">Editar</button>
             <button class="small" data-act="delete">Excluir</button>
           </div>`;
         container.appendChild(node);
 
-        node.addEventListener('dragstart', (e)=>{ node.classList.add('dragging'); e.dataTransfer.setData('text/plain', t.id); });
-        node.addEventListener('dragend', ()=> node.classList.remove('dragging'));
-        node.querySelector('[data-act="edit"]').addEventListener('click', ()=>{ editingId = t.id; openModal(t); });
-        node.querySelector('[data-act="delete"]').addEventListener('click', ()=>{ if(confirm('Excluir tarefa?')){ delete tasks[t.id]; save(); render(); } });
+        // drag
+        node.addEventListener('dragstart', e => {
+          node.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', t.id);
+        });
+        node.addEventListener('dragend', () => node.classList.remove('dragging'));
+
+        // ações
+        node.querySelector('[data-act="edit"]').addEventListener('click', () => {
+          editingId = t.id;
+          openModal(t);
+        });
+        node.querySelector('[data-act="delete"]').addEventListener('click', () => {
+          if (confirm('Excluir tarefa?')) {
+            delete tasks[t.id];
+            save(); render();
+          }
+        });
       }
-      // counts
+
+      // contadores
       const all = Object.keys(tasks).length;
       el('total-count').innerText = `Tarefas: ${all}`;
-      ['1','2','3','4'].forEach(q=> el('c'+q).innerText = `Q${q}: ${Object.values(tasks).filter(x=> x.quad==q).length}`);
+      ['1','2','3','4'].forEach(q => el('c'+q).innerText = `Q${q}: ${Object.values(tasks).filter(x=>x.quad==q).length}`);
     }
 
-    // drag & drop targets
-    ['q1','q2','q3','q4'].forEach(id=>{
-      const box = el(id);
-      box.addEventListener('dragover', (e)=>{ e.preventDefault(); box.classList.add('drop-hover'); });
-      box.addEventListener('dragleave', ()=> box.classList.remove('drop-hover'));
-      box.addEventListener('drop', (e)=>{
-        e.preventDefault(); box.classList.remove('drop-hover'); const id = e.dataTransfer.getData('text/plain'); if(tasks[id]){ tasks[id].quad = idFromBox(box); save(); render(); }
+    // ---------- Drag & Drop (CORRIGIDO) ----------
+    document.querySelectorAll('.quad').forEach(quad => {
+      quad.addEventListener('dragover', e => {
+        e.preventDefault();               // obrigatório para permitir drop
+        quad.classList.add('drop-hover');
+      });
+
+      quad.addEventListener('dragleave', e => {
+        if (!quad.contains(e.relatedTarget)) {
+          quad.classList.remove('drop-hover');
+        }
+      });
+
+      quad.addEventListener('drop', e => {
+        e.preventDefault();
+        quad.classList.remove('drop-hover');
+        const id = e.dataTransfer.getData('text/plain');
+        if (tasks[id]) {
+          tasks[id].quad = quad.dataset.quadrant;
+          save();
+          render();
+        }
       });
     });
-    function idFromBox(box){ return box.id.slice(1); }
 
-    // export/import
-    el('btn-export').addEventListener('click', ()=>{
+    // ---------- Exportar / Importar ----------
+    el('btn-export').addEventListener('click', () => {
       const blob = new Blob([JSON.stringify(tasks, null, 2)], {type:'application/json'});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'eisenhower_tasks.json'; a.click(); URL.revokeObjectURL(url);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'eisenhower_tasks.json'; a.click();
+      URL.revokeObjectURL(url);
     });
 
-    el('btn-import').addEventListener('click', ()=> el('import-file').click());
-    el('import-file').addEventListener('change', (ev)=>{
-      const f = ev.target.files[0]; if(!f) return; const reader = new FileReader();
-      reader.onload = ()=>{
-        try{ const imported = JSON.parse(reader.result); if(typeof imported === 'object' && imported !== null){ tasks = imported; save(); render(); alert('Importado com sucesso'); } else alert('Arquivo inválido'); }
-        catch(e){ alert('Erro ao importar: '+e.message); }
-      }; reader.readAsText(f);
+    el('btn-import').addEventListener('click', () => el('import-file').click());
+    el('import-file').addEventListener('change', ev => {
+      const f = ev.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = JSON.parse(reader.result);
+          if (typeof imported === 'object' && imported !== null) {
+            tasks = imported;
+            save(); render();
+            alert('Importado com sucesso');
+          } else alert('Arquivo inválido');
+        } catch(e){ alert('Erro ao importar: '+e.message); }
+      };
+      reader.readAsText(f);
     });
 
-    el('btn-clear').addEventListener('click', ()=>{ if(confirm('Limpar todas as tarefas?')){ tasks={}; save(); render(); } });
+    el('btn-clear').addEventListener('click', () => {
+      if (confirm('Limpar todas as tarefas?')) {
+        tasks = {}; save(); render();
+      }
+    });
 
-    // CSV export
-    el('btn-export-csv').addEventListener('click', ()=>{
+    // ---------- Exportar CSV ----------
+    el('btn-export-csv').addEventListener('click', () => {
       const rows = [['id','title','desc','due','quad','created','updated']];
-      Object.values(tasks).forEach(t=> rows.push([t.id, t.title, t.desc.replace(/"/g,'""'), t.due||'', t.quad, t.created||'', t.updated||'']));
-      const csv = rows.map(r=> r.map(cell=> `"${String(cell||'').replace(/"/g,'""') }"`).join(',')).join('\n');
+      Object.values(tasks).forEach(t => rows.push([
+        t.id,
+        t.title,
+        (t.desc||'').replace(/"/g,'""'),
+        t.due||'',
+        t.quad,
+        t.created||'',
+        t.updated||''
+      ]));
+      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], {type:'text/csv'});
-      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'eisenhower_tasks.csv'; a.click(); URL.revokeObjectURL(url);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'eisenhower_tasks.csv'; a.click();
+      URL.revokeObjectURL(url);
     });
 
-    // escape helper
-    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    // ---------- Atalhos de teclado ----------
+    document.addEventListener('keydown', e => {
+      if (e.key.toLowerCase() === 'n' && modal.style.display === 'none') openModal();
+      if (e.key.toLowerCase() === 'e' && e.ctrlKey) { e.preventDefault(); el('btn-export').click(); }
+    });
 
-    // CSV import convenience (not required) - left out for simplicity
-
-    // initialise
+    // ---------- Inicialização ----------
     load(); render();
-
-    // keyboard shortcuts: N = new, E = export
-    document.addEventListener('keydown', (e)=>{
-      if(e.key.toLowerCase() === 'n' && !modal.style.display){ openModal(); }
-      if(e.key.toLowerCase() === 'e' && e.ctrlKey){ e.preventDefault(); el('btn-export').click(); }
-    });
   </script>
 </body>
 </html>
