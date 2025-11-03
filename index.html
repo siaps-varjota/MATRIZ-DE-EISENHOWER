@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Matriz de Eisenhower — Interativa</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#7dd3fc; --glass: rgba(255,255,255,0.03);
+      --success:#16a34a; --danger:#ef4444;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071025 0%, #071a2a 100%);color:#e6eef6}
+    .app{max-width:1200px;margin:28px auto;padding:20px;}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    header h1{font-size:20px;margin:0}
+    header p{margin:0;color:var(--muted)}
+    .controls{display:flex;gap:8px;align-items:center}
+    button{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;color:inherit;cursor:pointer}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .quad{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;min-height:260px;border:1px solid rgba(255,255,255,0.03)}
+    .quad h2{display:flex;justify-content:space-between;align-items:center;font-size:16px;margin:0 0 8px 0}
+    .quad .hint{font-size:12px;color:var(--muted)}
+    .task{background:#051225;border-radius:8px;padding:8px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.03);cursor:grab}
+    .task.dragging{opacity:0.5}
+    .task .title{font-weight:600}
+    .task .meta{font-size:12px;color:var(--muted);margin-top:6px}
+    .task .actions{margin-top:8px;display:flex;gap:6px}
+    .small{font-size:13px;padding:6px 8px;border-radius:8px}
+    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+    .form-row{display:flex;gap:8px;margin-bottom:8px}
+    input,textarea,select{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:inherit;width:100%}
+    textarea{min-height:60px}
+    .counts{display:flex;gap:8px;margin-top:8px}
+    .count{font-size:13px;color:var(--muted)}
+    .drop-hint{border:2px dashed rgba(125,211,252,0.08);padding:8px;border-radius:8px;text-align:center;color:var(--muted)}
+    footer{margin-top:14px;color:var(--muted);font-size:13px}
+    @media (max-width:800px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Matriz de Eisenhower — Interativa</h1>
+        <p>Arraste as tarefas entre os quadrantes, salve localmente, exporte ou importe.</p>
+      </div>
+      <div class="controls">
+        <button id="btn-new">+ Nova tarefa</button>
+        <button id="btn-export">Exportar JSON</button>
+        <button id="btn-export-csv">Exportar CSV</button>
+        <button id="btn-import">Importar</button>
+        <button id="btn-clear">Limpar Tudo</button>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <div class="count" id="total-count">Tarefas: 0</div>
+      <div class="counts">
+        <div class="count" id="c1">Q1: 0</div>
+        <div class="count" id="c2">Q2: 0</div>
+        <div class="count" id="c3">Q3: 0</div>
+        <div class="count" id="c4">Q4: 0</div>
+      </div>
+    </section>
+
+    <main class="grid">
+      <div class="quad" data-quadrant="1">
+        <h2>Urgente + Importante <span class="hint">Faça agora</span></h2>
+        <div class="drop" id="q1"></div>
+      </div>
+      <div class="quad" data-quadrant="2">
+        <h2>Não Urgente + Importante <span class="hint">Planeje</span></h2>
+        <div class="drop" id="q2"></div>
+      </div>
+      <div class="quad" data-quadrant="3">
+        <h2>Urgente + Não Importante <span class="hint">Delegue</span></h2>
+        <div class="drop" id="q3"></div>
+      </div>
+      <div class="quad" data-quadrant="4">
+        <h2>Não Urgente + Não Importante <span class="hint">Elimine</span></h2>
+        <div class="drop" id="q4"></div>
+      </div>
+    </main>
+
+    <footer>
+      Salvamento automático no navegador. Use Exportar/Importar para transferir entre dispositivos.
+    </footer>
+  </div>
+
+  <!-- Modal simples -->
+  <div id="modal" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);">
+    <div style="background:#041323;padding:16px;border-radius:10px;min-width:320px;max-width:700px;border:1px solid rgba(255,255,255,0.04)">
+      <h3 id="modal-title">Nova tarefa</h3>
+      <div style="margin-top:8px">
+        <div class="form-row">
+          <input id="task-title" placeholder="Título" />
+          <input id="task-due" type="date" />
+        </div>
+        <div class="form-row">
+          <select id="task-quad">
+            <option value="1">Urgente + Importante (Q1)</option>
+            <option value="2">Não Urgente + Importante (Q2)</option>
+            <option value="3">Urgente + Não Importante (Q3)</option>
+            <option value="4">Não Urgente + Não Importante (Q4)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <textarea id="task-desc" placeholder="Descrição (opcional)"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+          <button id="modal-cancel">Cancelar</button>
+          <button id="modal-save" class="small">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input id="import-file" type="file" accept="application/json" style="display:none" />
+
+  <script>
+    const STORAGE_KEY = 'eisenhower_tasks_v1';
+    let tasks = {};
+
+    // util
+    const uid = ()=> Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+    const el = id => document.getElementById(id);
+
+    // modal
+    const modal = el('modal');
+    const tTitle = el('task-title');
+    const tDesc = el('task-desc');
+    const tDue = el('task-due');
+    const tQuad = el('task-quad');
+    let editingId = null;
+
+    function openModal(initial={title:'',desc:'',due:'',quad:'1'}){
+      editingId = null;
+      tTitle.value = initial.title||'';
+      tDesc.value = initial.desc||'';
+      tDue.value = initial.due||'';
+      tQuad.value = initial.quad||'1';
+      el('modal-title').innerText = initial.id ? 'Editar tarefa' : 'Nova tarefa';
+      modal.style.display = 'flex';
+    }
+    function closeModal(){ modal.style.display = 'none'; }
+
+    el('btn-new').addEventListener('click', ()=> openModal());
+    el('modal-cancel').addEventListener('click', closeModal);
+    el('modal-save').addEventListener('click', ()=>{
+      const title = tTitle.value.trim();
+      if(!title){ alert('Título obrigatório'); return; }
+      const obj = {title,desc:tDesc.value||'',due:tDue.value||'',quad: tQuad.value, updated: Date.now()};
+      if(editingId){ tasks[editingId] = {...tasks[editingId], ...obj}; }
+      else { const id = uid(); tasks[id] = {...obj, id, created:Date.now()}; }
+      save(); closeModal(); render();
+    });
+
+    // storage
+    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+    function load(){ const raw = localStorage.getItem(STORAGE_KEY); tasks = raw ? JSON.parse(raw) : {}; }
+
+    // render
+    function render(){
+      ['q1','q2','q3','q4'].forEach(id=> el(id).innerHTML = '');
+      const keys = Object.keys(tasks).sort((a,b)=> tasks[b].created - tasks[a].created);
+      for(const k of keys){ const t = tasks[k]; const container = el('q'+t.quad);
+        const node = document.createElement('div'); node.className='task'; node.draggable = true; node.dataset.id = t.id;
+        node.innerHTML = `
+          <div class="title">${escapeHtml(t.title)}</div>
+          <div class="meta">${t.desc ? escapeHtml(t.desc) : '<i style="color:var(--muted)">sem descrição</i>'} ${t.due? ' • Prazo: '+t.due : ''}</div>
+          <div class="actions">
+            <button class="small" data-act="edit">Editar</button>
+            <button class="small" data-act="delete">Excluir</button>
+          </div>`;
+        container.appendChild(node);
+
+        node.addEventListener('dragstart', (e)=>{ node.classList.add('dragging'); e.dataTransfer.setData('text/plain', t.id); });
+        node.addEventListener('dragend', ()=> node.classList.remove('dragging'));
+        node.querySelector('[data-act="edit"]').addEventListener('click', ()=>{ editingId = t.id; openModal(t); });
+        node.querySelector('[data-act="delete"]').addEventListener('click', ()=>{ if(confirm('Excluir tarefa?')){ delete tasks[t.id]; save(); render(); } });
+      }
+      // counts
+      const all = Object.keys(tasks).length;
+      el('total-count').innerText = `Tarefas: ${all}`;
+      ['1','2','3','4'].forEach(q=> el('c'+q).innerText = `Q${q}: ${Object.values(tasks).filter(x=> x.quad==q).length}`);
+    }
+
+    // drag & drop targets
+    ['q1','q2','q3','q4'].forEach(id=>{
+      const box = el(id);
+      box.addEventListener('dragover', (e)=>{ e.preventDefault(); box.classList.add('drop-hover'); });
+      box.addEventListener('dragleave', ()=> box.classList.remove('drop-hover'));
+      box.addEventListener('drop', (e)=>{
+        e.preventDefault(); box.classList.remove('drop-hover'); const id = e.dataTransfer.getData('text/plain'); if(tasks[id]){ tasks[id].quad = idFromBox(box); save(); render(); }
+      });
+    });
+    function idFromBox(box){ return box.id.slice(1); }
+
+    // export/import
+    el('btn-export').addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(tasks, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'eisenhower_tasks.json'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    el('btn-import').addEventListener('click', ()=> el('import-file').click());
+    el('import-file').addEventListener('change', (ev)=>{
+      const f = ev.target.files[0]; if(!f) return; const reader = new FileReader();
+      reader.onload = ()=>{
+        try{ const imported = JSON.parse(reader.result); if(typeof imported === 'object' && imported !== null){ tasks = imported; save(); render(); alert('Importado com sucesso'); } else alert('Arquivo inválido'); }
+        catch(e){ alert('Erro ao importar: '+e.message); }
+      }; reader.readAsText(f);
+    });
+
+    el('btn-clear').addEventListener('click', ()=>{ if(confirm('Limpar todas as tarefas?')){ tasks={}; save(); render(); } });
+
+    // CSV export
+    el('btn-export-csv').addEventListener('click', ()=>{
+      const rows = [['id','title','desc','due','quad','created','updated']];
+      Object.values(tasks).forEach(t=> rows.push([t.id, t.title, t.desc.replace(/"/g,'""'), t.due||'', t.quad, t.created||'', t.updated||'']));
+      const csv = rows.map(r=> r.map(cell=> `"${String(cell||'').replace(/"/g,'""') }"`).join(',')).join('\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'eisenhower_tasks.csv'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // escape helper
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+    // CSV import convenience (not required) - left out for simplicity
+
+    // initialise
+    load(); render();
+
+    // keyboard shortcuts: N = new, E = export
+    document.addEventListener('keydown', (e)=>{
+      if(e.key.toLowerCase() === 'n' && !modal.style.display){ openModal(); }
+      if(e.key.toLowerCase() === 'e' && e.ctrlKey){ e.preventDefault(); el('btn-export').click(); }
+    });
+  </script>
+</body>
+</html>
