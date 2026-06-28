@@ -1,4 +1,4 @@
-   <!doctype html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
@@ -37,6 +37,12 @@
     .drop-hint{border:2px dashed rgba(125,211,252,0.08);padding:8px;border-radius:8px;text-align:center;color:var(--muted)}
     footer{margin-top:14px;color:var(--muted);font-size:13px}
     @media (max-width:800px){.grid{grid-template-columns:1fr}}
+    .sync-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:6px 10px;border-radius:8px;background:var(--glass);border:1px solid rgba(255,255,255,0.04)}
+    .sync-dot{width:8px;height:8px;border-radius:50%;background:#facc15;transition:background .3s ease}
+    .sync-dot.online{background:#22c55e}
+    .sync-dot.offline{background:#ef4444}
+    .sync-dot.syncing{background:#facc15;animation:pulse 1s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
   </style>
 </head>
 <body>
@@ -47,6 +53,10 @@
         <p>Arraste as tarefas entre os quadrantes, salve localmente, exporte ou importe.</p>
       </div>
       <div class="controls">
+        <div class="sync-status" id="sync-status">
+          <span class="sync-dot syncing" id="sync-dot"></span>
+          <span id="sync-text">Conectando...</span>
+        </div>
         <button id="btn-new">+ Nova tarefa</button>
         <button id="btn-export">Exportar JSON</button>
         <button id="btn-export-csv">Exportar CSV</button>
@@ -119,6 +129,28 @@
 
   <input id="import-file" type="file" accept="application/json" style="display:none" />
 
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCiUnmW3JpkCo4TnsWib9Hbwao06jlzSE0",
+      authDomain: "eisenhower-varjota.firebaseapp.com",
+      databaseURL: "https://eisenhower-varjota-default-rtdb.firebaseio.com",
+      projectId: "eisenhower-varjota",
+      storageBucket: "eisenhower-varjota.firebasestorage.app",
+      messagingSenderId: "349487893654",
+      appId: "1:349487893654:web:e826a5f406d1b3208086b7"
+    };
+
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getDatabase(fbApp);
+    const tasksRef = ref(db, 'tasks');
+
+    // Expor para o script principal (não-módulo) via window
+    window.__firebase = { db, ref, set, onValue, tasksRef };
+  </script>
+
   <script>
     const STORAGE_KEY = 'eisenhower_tasks_v1';
     let tasks = {};
@@ -168,11 +200,75 @@
       save(); closeModal(); render();
     });
 
-    // ---------- Armazenamento ----------
-    function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+    // ---------- Armazenamento (local + Firebase) ----------
+    let suppressRemoteEcho = false; // evita re-render duplicado quando a própria escrita retorna pelo listener
+    let firebaseReady = false;
+
+    function setSyncStatus(state, text){
+      const dot = el('sync-dot');
+      const label = el('sync-text');
+      dot.classList.remove('online','offline','syncing');
+      dot.classList.add(state);
+      label.innerText = text;
+    }
+
+    function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+
+    function save(){
+      saveLocal();
+      if (firebaseReady && window.__firebase) {
+        setSyncStatus('syncing', 'Sincronizando...');
+        suppressRemoteEcho = true;
+        const { set, tasksRef } = window.__firebase;
+        set(tasksRef, tasks)
+          .then(() => { setSyncStatus('online', 'Sincronizado'); })
+          .catch(err => { console.error(err); setSyncStatus('offline', 'Erro ao sincronizar'); })
+          .finally(() => { setTimeout(() => suppressRemoteEcho = false, 300); });
+      } else {
+        setSyncStatus('offline', 'Offline (salvo localmente)');
+      }
+    }
+
     function load(){
       const raw = localStorage.getItem(STORAGE_KEY);
       tasks = raw ? JSON.parse(raw) : {};
+    }
+
+    function initFirebaseSync(){
+      // Os módulos ES carregam de forma assíncrona; aguarda window.__firebase ficar disponível
+      if (!window.__firebase) {
+        if (!window.__firebaseWaitAttempts) window.__firebaseWaitAttempts = 0;
+        window.__firebaseWaitAttempts++;
+        if (window.__firebaseWaitAttempts < 100) { // ~5s de tentativa
+          setTimeout(initFirebaseSync, 50);
+          return;
+        }
+        setSyncStatus('offline', 'Offline (salvo localmente)');
+        return;
+      }
+      const { onValue, tasksRef } = window.__firebase;
+      setSyncStatus('syncing', 'Conectando...');
+
+      onValue(tasksRef, (snapshot) => {
+        firebaseReady = true;
+        if (suppressRemoteEcho) { setSyncStatus('online', 'Sincronizado'); return; }
+        const remote = snapshot.val();
+        if (remote && typeof remote === 'object') {
+          tasks = remote;
+        } else if (Object.keys(tasks).length > 0) {
+          // banco remoto vazio mas há dados locais: envia o que temos para a nuvem
+          window.__firebase.set(tasksRef, tasks).catch(console.error);
+        }
+        saveLocal();
+        render();
+        setSyncStatus('online', 'Sincronizado');
+      }, (error) => {
+        console.error('Firebase error:', error);
+        setSyncStatus('offline', 'Offline (sem conexão)');
+      });
+
+      window.addEventListener('offline', () => setSyncStatus('offline', 'Sem internet'));
+      window.addEventListener('online', () => setSyncStatus('syncing', 'Reconectando...'));
     }
 
     // ---------- Renderização ----------
@@ -307,6 +403,7 @@
 
     // ---------- Inicialização ----------
     load(); render();
+    initFirebaseSync();
   </script>
 </body>
 </html>
