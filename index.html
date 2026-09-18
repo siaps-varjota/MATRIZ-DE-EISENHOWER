@@ -69,7 +69,11 @@
 
   .grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: repeat(2, 1fr);
+    grid-template-areas:
+      "q1 q2 q5"
+      "q3 q4 q5";
     gap: 15px;
   }
   .quadrant {
@@ -78,6 +82,8 @@
     padding: 12px;
     min-height: 220px;
     box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    display: flex;
+    flex-direction: column;
   }
   .quadrant h2 {
     font-size: 15px;
@@ -88,10 +94,12 @@
     color: #9ca3af;
     margin-bottom: 10px;
   }
-  #q1 { border-top: 4px solid #d9534f; }
-  #q2 { border-top: 4px solid #2d6cdf; }
-  #q3 { border-top: 4px solid #f0ad4e; }
-  #q4 { border-top: 4px solid #6b7280; }
+  #q1 { border-top: 4px solid #d9534f; grid-area: q1; }
+  #q2 { border-top: 4px solid #2d6cdf; grid-area: q2; }
+  #q3 { border-top: 4px solid #f0ad4e; grid-area: q3; }
+  #q4 { border-top: 4px solid #6b7280; grid-area: q4; }
+  #q5 { border-top: 4px solid #22c55e; grid-area: q5; }
+  #q5 .task-list { flex: 1; }
 
   .task-list { min-height: 100px; }
   .task {
@@ -158,8 +166,17 @@
 
   footer { margin-top: 20px; font-size: 12px; color: #9ca3af; }
 
-  @media (max-width: 600px) {
-    .grid { grid-template-columns: 1fr; }
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: none;
+      grid-template-areas:
+        "q1"
+        "q2"
+        "q3"
+        "q4"
+        "q5";
+    }
   }
 </style>
 </head>
@@ -186,6 +203,7 @@
   <span>Q2: <b id="countQ2">0</b></span>
   <span>Q3: <b id="countQ3">0</b></span>
   <span>Q4: <b id="countQ4">0</b></span>
+  <span>Resolvidos: <b id="countQ5">0</b></span>
 </div>
 
 <div class="grid">
@@ -209,6 +227,11 @@
     <div class="subtitle">Elimine</div>
     <div class="task-list" id="list-q4"></div>
   </div>
+  <div class="quadrant" id="q5" ondragover="allowDrop(event)" ondrop="drop(event, 'q5')">
+    <h2>Resolvidos</h2>
+    <div class="subtitle">Arraste aqui o que já foi resolvido</div>
+    <div class="task-list" id="list-q5"></div>
+  </div>
 </div>
 
 <footer>
@@ -230,6 +253,7 @@
       <option value="q2">Não Urgente + Importante (Q2)</option>
       <option value="q3">Urgente + Não Importante (Q3)</option>
       <option value="q4">Não Urgente + Não Importante (Q4)</option>
+      <option value="q5">Resolvidos</option>
     </select>
     <div class="modal-actions">
       <button class="secondary" onclick="closeTaskModal()">Cancelar</button>
@@ -351,7 +375,7 @@ function persist() {
 
 /* -------- Renderização -------- */
 function renderTasks() {
-  ['q1','q2','q3','q4'].forEach(q => {
+  ['q1','q2','q3','q4','q5'].forEach(q => {
     document.getElementById('list-' + q).innerHTML = '';
   });
 
@@ -378,7 +402,7 @@ function renderTasks() {
   });
 
   document.getElementById('countTotal').textContent = tasks.length;
-  ['q1','q2','q3','q4'].forEach(q => {
+  ['q1','q2','q3','q4','q5'].forEach(q => {
     document.getElementById('count' + q.toUpperCase()).textContent =
       tasks.filter(t => t.quadrant === q).length;
   });
