@@ -1,409 +1,502 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Matriz de Eisenhower — Interativa</title>
-  <style>
-    :root{
-      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#7dd3fc; --glass: rgba(255,255,255,0.03);
-      --success:#16a34a; --danger:#ef4444;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-    }
-    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071025 0%, #071a2a 100%);color:#e6eef6}
-    .app{max-width:1200px;margin:28px auto;padding:20px;}
-    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-    header h1{font-size:20px;margin:0}
-    header p{margin:0;color:var(--muted)}
-    .controls{display:flex;gap:8px;align-items:center}
-    button{background:var(--glass);border:1px solid rgba(255,255,255,0.04);padding:8px 12px;border-radius:10px;color:inherit;cursor:pointer}
-    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-    .quad{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;min-height:260px;border:1px solid rgba(255,255,255,0.03);position:relative}
-    .quad.drop-hover{background:rgba(125,211,252,0.08);border:2px dashed var(--accent);transition:all .2s ease}
-    .quad h2{display:flex;justify-content:space-between;align-items:center;font-size:16px;margin:0 0 8px 0}
-    .quad .hint{font-size:12px;color:var(--muted)}
-    .task{background:#051225;border-radius:8px;padding:8px;margin-bottom:8px;border:1px solid rgba(255,255,255,0.03);cursor:grab}
-    .task.dragging{opacity:0.5}
-    .task .title{font-weight:600}
-    .task .meta{font-size:12px;color:var(--muted);margin-top:6px}
-    .task .actions{margin-top:8px;display:flex;gap:6px}
-    .small{font-size:13px;padding:6px 8px;border-radius:8px}
-    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-    .form-row{display:flex;gap:8px;margin-bottom:8px}
-    input,textarea,select{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:inherit;width:100%}
-    textarea{min-height:60px}
-    .counts{display:flex;gap:8px;margin-top:8px}
-    .count{font-size:13px;color:var(--muted)}
-    .drop-hint{border:2px dashed rgba(125,211,252,0.08);padding:8px;border-radius:8px;text-align:center;color:var(--muted)}
-    footer{margin-top:14px;color:var(--muted);font-size:13px}
-    @media (max-width:800px){.grid{grid-template-columns:1fr}}
-    .sync-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:6px 10px;border-radius:8px;background:var(--glass);border:1px solid rgba(255,255,255,0.04)}
-    .sync-dot{width:8px;height:8px;border-radius:50%;background:#facc15;transition:background .3s ease}
-    .sync-dot.online{background:#22c55e}
-    .sync-dot.offline{background:#ef4444}
-    .sync-dot.syncing{background:#facc15;animation:pulse 1s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matriz de Eisenhower — Sincronizada</title>
+
+<!-- Firebase (compat, mais simples de configurar) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    padding: 20px;
+    color: #222;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  h1 { font-size: 20px; margin: 0; }
+  #status {
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #eee;
+  }
+  .status-ok { background: #d4f5dd; color: #187a3c; }
+  .status-wait { background: #fff3cd; color: #856404; }
+  .status-off { background: #f8d7da; color: #a02834; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #2d6cdf;
+    color: #fff;
+  }
+  button.secondary { background: #6b7280; }
+  button.danger { background: #d9534f; }
+
+  #counts {
+    display: flex;
+    gap: 15px;
+    font-size: 13px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+  }
+  #counts span { background: #fff; padding: 4px 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+  }
+  .quadrant {
+    background: #fff;
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 220px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .quadrant h2 {
+    font-size: 15px;
+    margin: 0 0 4px 0;
+  }
+  .quadrant .subtitle {
+    font-size: 12px;
+    color: #777;
+    margin-bottom: 10px;
+  }
+  #q1 { border-top: 4px solid #d9534f; }
+  #q2 { border-top: 4px solid #2d6cdf; }
+  #q3 { border-top: 4px solid #f0ad4e; }
+  #q4 { border-top: 4px solid #6b7280; }
+
+  .task-list { min-height: 100px; }
+  .task {
+    background: #f8f9fb;
+    border: 1px solid #e2e4e8;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    cursor: grab;
+    font-size: 14px;
+    position: relative;
+  }
+  .task .task-desc { font-size: 12px; color: #666; margin-top: 3px; }
+  .task .task-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 4px;
+  }
+  .task .task-actions button {
+    padding: 2px 6px;
+    font-size: 11px;
+    background: #eee;
+    color: #333;
+  }
+  .task.dragging { opacity: 0.4; }
+  .drag-over { background: #eef3ff; }
+
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 400px;
+  }
+  .modal h3 { margin-top: 0; }
+  .modal label { display: block; font-size: 13px; margin: 10px 0 4px; }
+  .modal input, .modal textarea, .modal select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 15px;
+  }
+
+  footer { margin-top: 20px; font-size: 12px; color: #888; }
+
+  @media (max-width: 600px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
 </head>
 <body>
-  <div class="app">
-    <header>
-      <div>
-        <h1>Matriz de Eisenhower — Interativa</h1>
-        <p>Arraste as tarefas entre os quadrantes, salve localmente, exporte ou importe.</p>
-      </div>
-      <div class="controls">
-        <div class="sync-status" id="sync-status">
-          <span class="sync-dot syncing" id="sync-dot"></span>
-          <span id="sync-text">Conectando...</span>
-        </div>
-        <button id="btn-new">+ Nova tarefa</button>
-        <button id="btn-export">Exportar JSON</button>
-        <button id="btn-export-csv">Exportar CSV</button>
-        <button id="btn-import">Importar</button>
-        <button id="btn-clear">Limpar Tudo</button>
-      </div>
-    </header>
 
-    <section class="toolbar">
-      <div class="count" id="total-count">Tarefas: 0</div>
-      <div class="counts">
-        <div class="count" id="c1">Q1: 0</div>
-        <div class="count" id="c2">Q2: 0</div>
-        <div class="count" id="c3">Q3: 0</div>
-        <div class="count" id="c4">Q4: 0</div>
-      </div>
-    </section>
+<header>
+  <h1>Matriz de Eisenhower — Sincronizada</h1>
+  <span id="status" class="status-wait">Conectando...</span>
+</header>
 
-    <main class="grid">
-      <div class="quad" data-quadrant="1">
-        <h2>Urgente + Importante <span class="hint">Faça agora</span></h2>
-        <div class="drop" id="q1"></div>
-      </div>
-      <div class="quad" data-quadrant="2">
-        <h2>Não Urgente + Importante <span class="hint">Planeje</span></h2>
-        <div class="drop" id="q2"></div>
-      </div>
-      <div class="quad" data-quadrant="3">
-        <h2>Urgente + Não Importante <span class="hint">Delegue</span></h2>
-        <div class="drop" id="q3"></div>
-      </div>
-      <div class="quad" data-quadrant="4">
-        <h2>Não Urgente + Não Importante <span class="hint">Elimine</span></h2>
-        <div class="drop" id="q4"></div>
-      </div>
-    </main>
+<div class="toolbar">
+  <button onclick="openTaskModal()">+ Nova tarefa</button>
+  <button class="secondary" onclick="exportJSON()">Exportar JSON</button>
+  <button class="secondary" onclick="exportCSV()">Exportar CSV</button>
+  <button class="secondary" onclick="document.getElementById('importFile').click()">Importar</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+  <button class="secondary" onclick="configurarSincronizacao()">🔗 Sincronizar dispositivos</button>
+  <button class="danger" onclick="limparTudo()">Limpar Tudo</button>
+</div>
 
-    <footer>
-      Salvamento automático no navegador. Use Exportar/Importar para transferir entre dispositivos.
-    </footer>
+<div id="counts">
+  <span>Tarefas: <b id="countTotal">0</b></span>
+  <span>Q1: <b id="countQ1">0</b></span>
+  <span>Q2: <b id="countQ2">0</b></span>
+  <span>Q3: <b id="countQ3">0</b></span>
+  <span>Q4: <b id="countQ4">0</b></span>
+</div>
+
+<div class="grid">
+  <div class="quadrant" id="q1" ondragover="allowDrop(event)" ondrop="drop(event, 'q1')">
+    <h2>Urgente + Importante</h2>
+    <div class="subtitle">Faça agora</div>
+    <div class="task-list" id="list-q1"></div>
   </div>
+  <div class="quadrant" id="q2" ondragover="allowDrop(event)" ondrop="drop(event, 'q2')">
+    <h2>Não Urgente + Importante</h2>
+    <div class="subtitle">Planeje</div>
+    <div class="task-list" id="list-q2"></div>
+  </div>
+  <div class="quadrant" id="q3" ondragover="allowDrop(event)" ondrop="drop(event, 'q3')">
+    <h2>Urgente + Não Importante</h2>
+    <div class="subtitle">Delegue</div>
+    <div class="task-list" id="list-q3"></div>
+  </div>
+  <div class="quadrant" id="q4" ondragover="allowDrop(event)" ondrop="drop(event, 'q4')">
+    <h2>Não Urgente + Não Importante</h2>
+    <div class="subtitle">Elimine</div>
+    <div class="task-list" id="list-q4"></div>
+  </div>
+</div>
 
-  <!-- Modal -->
-  <div id="modal" style="display:none;position:fixed;inset:0;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);">
-    <div style="background:#041323;padding:16px;border-radius:10px;min-width:320px;max-width:700px;border:1px solid rgba(255,255,255,0.04)">
-      <h3 id="modal-title">Nova tarefa</h3>
-      <div style="margin-top:8px">
-        <div class="form-row">
-          <input id="task-title" placeholder="Título" />
-          <input id="task-due" type="date" />
-        </div>
-        <div class="form-row">
-          <select id="task-quad">
-            <option value="1">Urgente + Importante (Q1)</option>
-            <option value="2">Não Urgente + Importante (Q2)</option>
-            <option value="3">Urgente + Não Importante (Q3)</option>
-            <option value="4">Não Urgente + Não Importante (Q4)</option>
-          </select>
-        </div>
-        <div class="form-row">
-          <textarea id="task-desc" placeholder="Descrição (opcional)"></textarea>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
-          <button id="modal-cancel">Cancelar</button>
-          <button id="modal-save" class="small">Salvar</button>
-        </div>
-      </div>
+<footer>
+  Os dados são salvos automaticamente no navegador e, se você configurar a sincronização, também na nuvem — assim ficam iguais em qualquer dispositivo que use o mesmo código.
+</footer>
+
+<!-- Modal de nova tarefa -->
+<div class="modal-backdrop" id="taskModalBackdrop">
+  <div class="modal">
+    <h3 id="modalTitle">Nova tarefa</h3>
+    <input type="hidden" id="taskId">
+    <label>Título</label>
+    <input type="text" id="taskTitle" placeholder="Ex: Enviar relatório">
+    <label>Descrição (opcional)</label>
+    <textarea id="taskDesc" rows="3"></textarea>
+    <label>Quadrante</label>
+    <select id="taskQuadrant">
+      <option value="q1">Urgente + Importante (Q1)</option>
+      <option value="q2">Não Urgente + Importante (Q2)</option>
+      <option value="q3">Urgente + Não Importante (Q3)</option>
+      <option value="q4">Não Urgente + Não Importante (Q4)</option>
+    </select>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeTaskModal()">Cancelar</button>
+      <button onclick="saveTaskFromModal()">Salvar</button>
     </div>
   </div>
+</div>
 
-  <input id="import-file" type="file" accept="application/json" style="display:none" />
+<script>
+/* ==========================================================
+   1) CONFIGURAÇÃO DO FIREBASE
+   Substitua os valores abaixo pelos do SEU projeto Firebase.
+   Veja o passo a passo enviado junto com este código.
+   ========================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCiUnmW3JpkCo4TnsWib9Hbwao06jlzSE0",
+  authDomain: "eisenhower-varjota.firebaseapp.com",
+  projectId: "eisenhower-varjota",
+  storageBucket: "eisenhower-varjota.firebasestorage.app",
+  messagingSenderId: "349487893654",
+  appId: "1:349487893654:web:e826a5f406d1b3208086b7"
+};
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+let db = null;
+let firebaseReady = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  firebaseReady = true;
+} catch (e) {
+  console.warn("Firebase não configurado ainda:", e);
+}
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCiUnmW3JpkCo4TnsWib9Hbwao06jlzSE0",
-      authDomain: "eisenhower-varjota.firebaseapp.com",
-      databaseURL: "https://eisenhower-varjota-default-rtdb.firebaseio.com",
-      projectId: "eisenhower-varjota",
-      storageBucket: "eisenhower-varjota.firebasestorage.app",
-      messagingSenderId: "349487893654",
-      appId: "1:349487893654:web:e826a5f406d1b3208086b7"
-    };
+/* ========================================================== */
 
-    const fbApp = initializeApp(firebaseConfig);
-    const db = getDatabase(fbApp);
-    const tasksRef = ref(db, 'tasks');
+let tasks = [];
+let syncCode = localStorage.getItem('eisenhower_sync_code') || '';
+let unsubscribeSnapshot = null;
+let saveTimeout = null;
 
-    // Expor para o script principal (não-módulo) via window
-    window.__firebase = { db, ref, set, onValue, tasksRef };
-  </script>
+const statusEl = document.getElementById('status');
 
-  <script>
-    const STORAGE_KEY = 'eisenhower_tasks_v1';
-    let tasks = {};
+function setStatus(text, type) {
+  statusEl.textContent = text;
+  statusEl.className = type === 'ok' ? 'status-ok' : (type === 'off' ? 'status-off' : 'status-wait');
+}
 
-    // ---------- Utilitários ----------
-    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-    const el = id => document.getElementById(id);
-    const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* -------- Carregamento local -------- */
+function loadLocal() {
+  const raw = localStorage.getItem('eisenhower_tasks');
+  tasks = raw ? JSON.parse(raw) : [];
+}
+function saveLocal() {
+  localStorage.setItem('eisenhower_tasks', JSON.stringify(tasks));
+}
 
-    // ---------- Modal ----------
-    const modal = el('modal');
-    const tTitle = el('task-title');
-    const tDesc = el('task-desc');
-    const tDue = el('task-due');
-    const tQuad = el('task-quad');
-    let editingId = null;
+/* -------- Sincronização com Firestore -------- */
+function connectSync(code) {
+  if (!firebaseReady) {
+    setStatus('Firebase não configurado', 'off');
+    return;
+  }
+  syncCode = code;
+  localStorage.setItem('eisenhower_sync_code', code);
 
-    function openModal(initial = {title:'',desc:'',due:'',quad:'1'}){
-      editingId = null;
-      tTitle.value = initial.title || '';
-      tDesc.value = initial.desc || '';
-      tDue.value = initial.due || '';
-      tQuad.value = initial.quad || '1';
-      el('modal-title').innerText = initial.id ? 'Editar tarefa' : 'Nova tarefa';
-      modal.style.display = 'flex';
-    }
-    function closeModal(){ modal.style.display = 'none'; }
+  if (unsubscribeSnapshot) unsubscribeSnapshot();
 
-    el('btn-new').addEventListener('click', () => openModal());
-    el('modal-cancel').addEventListener('click', closeModal);
-    el('modal-save').addEventListener('click', () => {
-      const title = tTitle.value.trim();
-      if (!title) { alert('Título obrigatório'); return; }
-      const obj = {
-        title,
-        desc: tDesc.value || '',
-        due: tDue.value || '',
-        quad: tQuad.value,
-        updated: Date.now()
-      };
-      if (editingId) {
-        tasks[editingId] = { ...tasks[editingId], ...obj };
+  setStatus('Conectando...', 'wait');
+
+  const docRef = db.collection('eisenhowerBoards').doc(code);
+
+  unsubscribeSnapshot = docRef.onSnapshot(
+    (doc) => {
+      if (doc.exists) {
+        tasks = doc.data().tasks || [];
       } else {
-        const id = uid();
-        tasks[id] = { ...obj, id, created: Date.now() };
+        // Documento novo: envia o que já existe localmente
+        docRef.set({ tasks: tasks, updatedAt: Date.now() });
       }
-      save(); closeModal(); render();
-    });
-
-    // ---------- Armazenamento (local + Firebase) ----------
-    let suppressRemoteEcho = false; // evita re-render duplicado quando a própria escrita retorna pelo listener
-    let firebaseReady = false;
-
-    function setSyncStatus(state, text){
-      const dot = el('sync-dot');
-      const label = el('sync-text');
-      dot.classList.remove('online','offline','syncing');
-      dot.classList.add(state);
-      label.innerText = text;
-    }
-
-    function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
-
-    function save(){
       saveLocal();
-      if (firebaseReady && window.__firebase) {
-        setSyncStatus('syncing', 'Sincronizando...');
-        suppressRemoteEcho = true;
-        const { set, tasksRef } = window.__firebase;
-        set(tasksRef, tasks)
-          .then(() => { setSyncStatus('online', 'Sincronizado'); })
-          .catch(err => { console.error(err); setSyncStatus('offline', 'Erro ao sincronizar'); })
-          .finally(() => { setTimeout(() => suppressRemoteEcho = false, 300); });
+      renderTasks();
+      setStatus('Sincronizado ✔', 'ok');
+    },
+    (err) => {
+      console.error(err);
+      setStatus('Offline — salvando local', 'off');
+    }
+  );
+}
+
+function pushToCloud() {
+  if (!firebaseReady || !syncCode) return;
+  db.collection('eisenhowerBoards').doc(syncCode)
+    .set({ tasks: tasks, updatedAt: Date.now() })
+    .catch(err => {
+      console.error(err);
+      setStatus('Offline — salvando local', 'off');
+    });
+}
+
+function configurarSincronizacao() {
+  const atual = syncCode || '';
+  const novo = prompt(
+    "Digite um código de sincronização (crie um código único e use o MESMO em todos os seus dispositivos):",
+    atual
+  );
+  if (novo && novo.trim()) {
+    connectSync(novo.trim());
+  }
+}
+
+/* -------- Salvamento geral (chamar sempre que os dados mudarem) -------- */
+function persist() {
+  saveLocal();
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(pushToCloud, 500); // pequeno debounce
+  renderTasks();
+}
+
+/* -------- Renderização -------- */
+function renderTasks() {
+  ['q1','q2','q3','q4'].forEach(q => {
+    document.getElementById('list-' + q).innerHTML = '';
+  });
+
+  tasks.forEach(task => {
+    const el = document.createElement('div');
+    el.className = 'task';
+    el.draggable = true;
+    el.dataset.id = task.id;
+    el.ondragstart = (e) => {
+      e.dataTransfer.setData('text/plain', task.id);
+      el.classList.add('dragging');
+    };
+    el.ondragend = () => el.classList.remove('dragging');
+
+    el.innerHTML = `
+      <div class="task-actions">
+        <button onclick="editTask('${task.id}')">✏️</button>
+        <button onclick="deleteTask('${task.id}')">🗑️</button>
+      </div>
+      <div>${task.title}</div>
+      ${task.desc ? `<div class="task-desc">${task.desc}</div>` : ''}
+    `;
+    document.getElementById('list-' + task.quadrant).appendChild(el);
+  });
+
+  document.getElementById('countTotal').textContent = tasks.length;
+  ['q1','q2','q3','q4'].forEach(q => {
+    document.getElementById('count' + q.toUpperCase()).textContent =
+      tasks.filter(t => t.quadrant === q).length;
+  });
+}
+
+/* -------- Drag & Drop -------- */
+function allowDrop(e) { e.preventDefault(); }
+function drop(e, quadrant) {
+  e.preventDefault();
+  const id = e.dataTransfer.getData('text/plain');
+  const task = tasks.find(t => t.id === id);
+  if (task) {
+    task.quadrant = quadrant;
+    persist();
+  }
+}
+
+/* -------- CRUD de tarefas -------- */
+function openTaskModal() {
+  document.getElementById('modalTitle').textContent = 'Nova tarefa';
+  document.getElementById('taskId').value = '';
+  document.getElementById('taskTitle').value = '';
+  document.getElementById('taskDesc').value = '';
+  document.getElementById('taskQuadrant').value = 'q1';
+  document.getElementById('taskModalBackdrop').classList.add('open');
+}
+function closeTaskModal() {
+  document.getElementById('taskModalBackdrop').classList.remove('open');
+}
+function editTask(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  document.getElementById('modalTitle').textContent = 'Editar tarefa';
+  document.getElementById('taskId').value = task.id;
+  document.getElementById('taskTitle').value = task.title;
+  document.getElementById('taskDesc').value = task.desc || '';
+  document.getElementById('taskQuadrant').value = task.quadrant;
+  document.getElementById('taskModalBackdrop').classList.add('open');
+}
+function saveTaskFromModal() {
+  const id = document.getElementById('taskId').value;
+  const title = document.getElementById('taskTitle').value.trim();
+  const desc = document.getElementById('taskDesc').value.trim();
+  const quadrant = document.getElementById('taskQuadrant').value;
+
+  if (!title) { alert('Digite um título para a tarefa.'); return; }
+
+  if (id) {
+    const task = tasks.find(t => t.id === id);
+    task.title = title;
+    task.desc = desc;
+    task.quadrant = quadrant;
+  } else {
+    tasks.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      title, desc, quadrant
+    });
+  }
+  persist();
+  closeTaskModal();
+}
+function deleteTask(id) {
+  if (!confirm('Excluir esta tarefa?')) return;
+  tasks = tasks.filter(t => t.id !== id);
+  persist();
+}
+function limparTudo() {
+  if (!confirm('Isso vai apagar TODAS as tarefas. Continuar?')) return;
+  tasks = [];
+  persist();
+}
+
+/* -------- Exportar / Importar -------- */
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'matriz-eisenhower.json');
+}
+function exportCSV() {
+  const header = 'id,title,desc,quadrant\n';
+  const rows = tasks.map(t =>
+    [t.id, `"${(t.title||'').replace(/"/g,'""')}"`, `"${(t.desc||'').replace(/"/g,'""')}"`, t.quadrant].join(',')
+  ).join('\n');
+  const blob = new Blob([header + rows], { type: 'text/csv' });
+  downloadBlob(blob, 'matriz-eisenhower.csv');
+}
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (Array.isArray(imported)) {
+        tasks = imported;
+        persist();
+        alert('Importação concluída!');
       } else {
-        setSyncStatus('offline', 'Offline (salvo localmente)');
+        alert('Arquivo inválido.');
       }
+    } catch (err) {
+      alert('Erro ao ler o arquivo: ' + err.message);
     }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
 
-    function load(){
-      const raw = localStorage.getItem(STORAGE_KEY);
-      tasks = raw ? JSON.parse(raw) : {};
-    }
+/* -------- Inicialização -------- */
+loadLocal();
+renderTasks();
 
-    function initFirebaseSync(){
-      // Os módulos ES carregam de forma assíncrona; aguarda window.__firebase ficar disponível
-      if (!window.__firebase) {
-        if (!window.__firebaseWaitAttempts) window.__firebaseWaitAttempts = 0;
-        window.__firebaseWaitAttempts++;
-        if (window.__firebaseWaitAttempts < 100) { // ~5s de tentativa
-          setTimeout(initFirebaseSync, 50);
-          return;
-        }
-        setSyncStatus('offline', 'Offline (salvo localmente)');
-        return;
-      }
-      const { onValue, tasksRef } = window.__firebase;
-      setSyncStatus('syncing', 'Conectando...');
-
-      onValue(tasksRef, (snapshot) => {
-        firebaseReady = true;
-        if (suppressRemoteEcho) { setSyncStatus('online', 'Sincronizado'); return; }
-        const remote = snapshot.val();
-        if (remote && typeof remote === 'object') {
-          tasks = remote;
-        } else if (Object.keys(tasks).length > 0) {
-          // banco remoto vazio mas há dados locais: envia o que temos para a nuvem
-          window.__firebase.set(tasksRef, tasks).catch(console.error);
-        }
-        saveLocal();
-        render();
-        setSyncStatus('online', 'Sincronizado');
-      }, (error) => {
-        console.error('Firebase error:', error);
-        setSyncStatus('offline', 'Offline (sem conexão)');
-      });
-
-      window.addEventListener('offline', () => setSyncStatus('offline', 'Sem internet'));
-      window.addEventListener('online', () => setSyncStatus('syncing', 'Reconectando...'));
-    }
-
-    // ---------- Renderização ----------
-    function render(){
-      ['q1','q2','q3','q4'].forEach(id => el(id).innerHTML = '');
-      const keys = Object.keys(tasks).sort((a,b) => tasks[b].created - tasks[a].created);
-      for (const k of keys){
-        const t = tasks[k];
-        const container = el('q' + t.quad);
-        const node = document.createElement('div');
-        node.className = 'task';
-        node.draggable = true;
-        node.dataset.id = t.id;
-        node.innerHTML = `
-          <div class="title">${escapeHtml(t.title)}</div>
-          <div class="meta">${t.desc ? escapeHtml(t.desc) : '<i style="color:var(--muted)">sem descrição</i>'} ${t.due ? ' • Prazo: '+t.due : ''}</div>
-          <div class="actions">
-            <button class="small" data-act="edit">Editar</button>
-            <button class="small" data-act="delete">Excluir</button>
-          </div>`;
-        container.appendChild(node);
-
-        // drag
-        node.addEventListener('dragstart', e => {
-          node.classList.add('dragging');
-          e.dataTransfer.setData('text/plain', t.id);
-        });
-        node.addEventListener('dragend', () => node.classList.remove('dragging'));
-
-        // ações
-        node.querySelector('[data-act="edit"]').addEventListener('click', () => {
-          editingId = t.id;
-          openModal(t);
-        });
-        node.querySelector('[data-act="delete"]').addEventListener('click', () => {
-          if (confirm('Excluir tarefa?')) {
-            delete tasks[t.id];
-            save(); render();
-          }
-        });
-      }
-
-      // contadores
-      const all = Object.keys(tasks).length;
-      el('total-count').innerText = `Tarefas: ${all}`;
-      ['1','2','3','4'].forEach(q => el('c'+q).innerText = `Q${q}: ${Object.values(tasks).filter(x=>x.quad==q).length}`);
-    }
-
-    // ---------- Drag & Drop (CORRIGIDO) ----------
-    document.querySelectorAll('.quad').forEach(quad => {
-      quad.addEventListener('dragover', e => {
-        e.preventDefault();               // obrigatório para permitir drop
-        quad.classList.add('drop-hover');
-      });
-
-      quad.addEventListener('dragleave', e => {
-        if (!quad.contains(e.relatedTarget)) {
-          quad.classList.remove('drop-hover');
-        }
-      });
-
-      quad.addEventListener('drop', e => {
-        e.preventDefault();
-        quad.classList.remove('drop-hover');
-        const id = e.dataTransfer.getData('text/plain');
-        if (tasks[id]) {
-          tasks[id].quad = quad.dataset.quadrant;
-          save();
-          render();
-        }
-      });
-    });
-
-    // ---------- Exportar / Importar ----------
-    el('btn-export').addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(tasks, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'eisenhower_tasks.json'; a.click();
-      URL.revokeObjectURL(url);
-    });
-
-    el('btn-import').addEventListener('click', () => el('import-file').click());
-    el('import-file').addEventListener('change', ev => {
-      const f = ev.target.files[0];
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const imported = JSON.parse(reader.result);
-          if (typeof imported === 'object' && imported !== null) {
-            tasks = imported;
-            save(); render();
-            alert('Importado com sucesso');
-          } else alert('Arquivo inválido');
-        } catch(e){ alert('Erro ao importar: '+e.message); }
-      };
-      reader.readAsText(f);
-    });
-
-    el('btn-clear').addEventListener('click', () => {
-      if (confirm('Limpar todas as tarefas?')) {
-        tasks = {}; save(); render();
-      }
-    });
-
-    // ---------- Exportar CSV ----------
-    el('btn-export-csv').addEventListener('click', () => {
-      const rows = [['id','title','desc','due','quad','created','updated']];
-      Object.values(tasks).forEach(t => rows.push([
-        t.id,
-        t.title,
-        (t.desc||'').replace(/"/g,'""'),
-        t.due||'',
-        t.quad,
-        t.created||'',
-        t.updated||''
-      ]));
-      const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
-      const blob = new Blob([csv], {type:'text/csv'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'eisenhower_tasks.csv'; a.click();
-      URL.revokeObjectURL(url);
-    });
-
-    // ---------- Atalhos de teclado ----------
-    document.addEventListener('keydown', e => {
-      if (e.key.toLowerCase() === 'n' && modal.style.display === 'none') openModal();
-      if (e.key.toLowerCase() === 'e' && e.ctrlKey) { e.preventDefault(); el('btn-export').click(); }
-    });
-
-    // ---------- Inicialização ----------
-    load(); render();
-    initFirebaseSync();
-  </script>
+if (syncCode) {
+  connectSync(syncCode);
+} else {
+  setStatus('Sem sincronização — salvando só neste dispositivo', 'off');
+}
+</script>
 </body>
 </html>
